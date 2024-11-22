@@ -27,3 +27,10 @@
 1-basic-mult/tiledtest.exe
 3-parallel-mult/avx2p.exe
 1-basic-mult/testbench.c
+1-basic-mult/ikjvtune.exe
+1-basic-mult/nvtune.exe
+1-basic-mult/nvtune32.exe
+1-basic-mult/test.exe
+1-basic-mult/tiled.exe
+1-basic-mult/tiledvtune.exe
+2-avx2-mult/tiled_avx2.exe

@@ -20,7 +20,7 @@ int main(int argc, char* argv[argc+1]) {
     int size = 1600;
     long long tstart, tstop;
     double tmmult;
-
+    printf("test");
     A = create_matrix(size, size);
     B = create_matrix(size, size);
     C = create_matrix(size, size);
@@ -48,7 +48,7 @@ int main(int argc, char* argv[argc+1]) {
 
     tstart = timestamp();
     /* START TEST*/ 
-    block_avx2_unrolled(A0, B0, C0, size);
+    block_avx2(A0, B0, C0, size);
     /* END TEST*/
     tstop = timestamp();
 

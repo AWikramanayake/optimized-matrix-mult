@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
+#include <string.h>
 
 
 double** create_matrix(int, int);
@@ -12,7 +13,7 @@ static inline long long timestamp();
 
 int main(int argc, char* argv[argc+1]) {
     double **A, **B, **C;
-    int size = 500;
+    int size = 350;
     long long tstart, tstop;
     double tmmult;
 
@@ -43,7 +44,7 @@ int main(int argc, char* argv[argc+1]) {
 
     tstart = timestamp();
     /* START TEST*/ 
-    mmult_naive(A0, B0, C0, size);
+    mmult_ikj(A0, B0, C0, size);
     /* END TEST*/
     tstop = timestamp();
 
@@ -54,8 +55,16 @@ int main(int argc, char* argv[argc+1]) {
         sum += C[i][i];
     }
 
+    char *filename_base = "ikj_vtune_";
+    char msize_str[5];
+    itoa(size, msize_str, 10);
+    char buffer[50];
+    strcpy(buffer, filename_base);
+    strcat(buffer, msize_str);
+    strcat(buffer, ".csv");
+
     FILE *fpt;
-    fpt = fopen("basic_mult.csv", "w+");
+    fpt = fopen(buffer, "w+");
     printf("matrix_size, gflops_mmult, tmmult, trace_mmult\n");
     fprintf(fpt,"matrix_size, gflops_mmult, tmmult, trace_mmult\n");
 
