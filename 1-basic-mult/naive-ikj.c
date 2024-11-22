@@ -129,9 +129,7 @@ void mmult_naive(double* A, double* B, double* C, int size) {
     }
 }
 
-/* simple matrix multiplication function with j and k iterator orders swapped 
-    Reduces cache misses, significant if matrix size smaller or ~= cache size */
-
+/* simple matrix multiplication function with j and k iterator orders swapped */
 void mmult_ikj(double* A, double* B, double* C, int size) {
     for (int i = 0; i < size; i++) {
         for (int k = 0; k < size; k++) {
@@ -141,3 +139,4 @@ void mmult_ikj(double* A, double* B, double* C, int size) {
         }
     }
 }
+
