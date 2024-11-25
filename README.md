@@ -94,10 +94,10 @@ Additional complexity means more complex cleanup code. This code allows any matr
 So, what does this code achieve? The GCC compiler with -O3 flags is able to pipeline the vector instructions efficiently. Without getting into an actual analysis of assembly code, just look at the density of vector instructions (the ones starting with the letter v) in L54 (basic) vs L94 (unrolled) below:
 
 <p align="center">
-<img src="https://github.com/AWikramanayake/optimized-matrix-mult/blob/main/misc/avx2assembly.jpg?raw=true" width="720"/>
+<img src="https://github.com/AWikramanayake/optimized-matrix-mult/blob/main/misc/avx2assembly.jpg?raw=true" width="540"/>
 </p>
 <p align="center">
-Image 4: AVX2 vs AVX unrolled assembly</br>
+Image 5: AVX2 vs AVX unrolled assembly</br>
 
 A cursory glance tells us that the number of efficient vector instructions for a given amount of overhead is much greater with the unrolled code. And what does this increase net us performance-wise?
 
@@ -105,6 +105,6 @@ A cursory glance tells us that the number of efficient vector instructions for a
 <img src="https://github.com/AWikramanayake/optimized-matrix-mult/blob/main/misc/GFLOPSvsMatSizeAvx2unrolled.png?raw=true" width="720"/>
 </p>
 <p align="center">
-Image 4: AVX2 unrolled performance vs other implementations</br>
+Figure 5: AVX2 unrolled performance vs other implementations</br>
 
 Again, we see zig-zagging based on whether or not the cleanup code is triggered. Overall we have ~double the performance of the non-unrolled AVX2 implementation, and 5-6x the performance of the basic tiled implementation. This means for a 1600x1600 matrix, we have 30x the performance of the most basic naive implementation, without even using multithreading!
