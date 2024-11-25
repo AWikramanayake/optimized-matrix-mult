@@ -120,9 +120,7 @@ void matrix_init(double** matrix, int rows, int cols, bool zeroes) {
 */
 void block_avx2(double* A, double* B, double* C, int size) {
     int rem = size % 4;
-    printf("rem set to %d\n", rem);
     __m256i mask;
-
     int size4 = size - rem;
     
     for (int i0 = 0; i0 < size4; i0 += BLOCKSIZE) {
@@ -144,22 +142,26 @@ void block_avx2(double* A, double* B, double* C, int size) {
         }
     }
 
-    printf("rem = %d, proceeding with cleanup code\n", rem);
-    if (rem) {
-        switch(rem) {
+    /* CLEANUP CODE: final columns of C and A (index i) if size is not divisible by 4 */
+    if (rem) {  // we do not trigger the code if size is divisible by 4
+        switch(rem) {       // create a mask to fill end of c0 with 0's as needed
             case 1 : mask = _mm256_setr_epi32(1, -1, 1, 1, 1, 1, 1, 1); break;
             case 2 : mask = _mm256_setr_epi32(1, -1, 1, -1, 1, 1, 1, 1); break;
             case 3 : mask = _mm256_setr_epi32(1, -1, 1, -1, 1, -1, 1, 1); break;
         }
 
-        for (int j = 0; j < size; j++) {
-            __m256d c0 = _mm256_maskload_pd(C + size4 + j*size, mask);
-            for( int k = 0; k < size; k++ ) {
-                c0 = _mm256_add_pd(c0,
-                _mm256_mul_pd(_mm256_maskload_pd(A + size4 + k*size, mask),
-                _mm256_broadcast_sd(B + k + j*size)));
+        for (int j0 = 0; j0 < size; j0 += BLOCKSIZE) {
+            for (int k0 = 0; k0 < size; k0 += BLOCKSIZE) {        
+                for (int j = j0; j < MIN(j0+BLOCKSIZE, size); j++) {
+                    __m256d c0 = _mm256_maskload_pd(C + size4 + j*size, mask);  // read elements using mask to avoid out-of-bounds data
+                    for(int k = k0; k < MIN(k0+BLOCKSIZE, size); k++) {
+                        c0 = _mm256_add_pd(c0,
+                        _mm256_mul_pd(_mm256_maskload_pd(A + size4 + k*size, mask), // use maskload again
+                        _mm256_broadcast_sd(B + k + j*size)));
 
-                _mm256_maskstore_pd(C + size4 + j*size, mask, c0);
+                        _mm256_maskstore_pd(C + size4 + j*size, mask, c0);  // write using mask to avoid writing out-of-bounds
+                    }
+                }
             }
         }
     }
@@ -179,15 +181,17 @@ void block_avx2_unrolled(double* A, double* B, double* C, int size) {
             for (int k0 = 0; k0 < size; k0 += BLOCKSIZE) {
                 for (int i = i0; i < MIN(i0+BLOCKSIZE, sizeU4); i+=UNROLL*4 )
                     for ( int j = j0; j < MIN(j0+BLOCKSIZE, size); j++ ) {
-                        __m256d c[UNROLL];
-                        for ( int x = 0; x < UNROLL; x++ )
+                        __m256d c[UNROLL];      // create UNROLL (here 4) 256 bit vectors
+                        for (int x = 0; x < UNROLL; x++)    // Populate the 4 vectors
                             c[x] = _mm256_load_pd(C + i + x*4 + j*size);
 
                         for( int k = k0; k < MIN(k0+BLOCKSIZE, size); k++ )
-                        {
+                        {    
                             __m256d b = _mm256_broadcast_sd(B + k + j*size);
-                            for (int x = 0; x < UNROLL; x++)
-                            c[x] = _mm256_add_pd(c[x],
+                            // Unroll the loop -> iterations do not have name dependency/antidependency
+                            // GCC compiler with -O3 flag will optimize it now
+                            for (int x = 0; x < UNROLL; x++)    
+                            c[x] = _mm256_add_pd(c[x],          
                                 _mm256_mul_pd(_mm256_load_pd(A + size*k + x*4 + i), b));
                         }
 
@@ -198,12 +202,12 @@ void block_avx2_unrolled(double* A, double* B, double* C, int size) {
         }
     }
 
-    if (rem) {
-        int fourBlocks = rem/4;
+    if (rem) {  // clenup code if size is not divisible by 4*UNROLL
+        int fourBlocks = rem/4; // number of full vectors of 4 to run before we need an incomplete vector
         for (int j0 = 0; j0 < size; j0 += BLOCKSIZE) {
             for (int k0 = 0; k0 < size; k0 += BLOCKSIZE) {        
                 for (int j = j0; j < MIN(j0+BLOCKSIZE, size); j++) {
-                    __m256d c[fourBlocks];
+                    __m256d c[fourBlocks];      // Perform iterations as before, except with fewer than UNROLL unlooped iterations
                     for (int x = 0; x < fourBlocks; x++)
                         c[x] = _mm256_load_pd(C + sizeU4 + x*4 + j*size);
 
@@ -222,9 +226,9 @@ void block_avx2_unrolled(double* A, double* B, double* C, int size) {
                 }
             }
         }
-
-        switch(rem % 4) {
-            case 0 : goto SKIPLOOP;
+                                    // after n = fourBlocks iterations through i, we might need partially filled vectors
+        switch(rem % 4) {           // create appropriate mask to load/store partially filled vectors
+            case 0 : goto SKIPLOOP; // This is if size % 4*unroll != 0, but size % 4 == 0. Then we are already done.
             case 1 : mask = _mm256_setr_epi32(1, -1, 1, 1, 1, 1, 1, 1); sizeU4 = size - rem%4; break;
             case 2 : mask = _mm256_setr_epi32(1, -1, 1, -1, 1, 1, 1, 1); sizeU4 = size - rem%4; break;
             case 3 : mask = _mm256_setr_epi32(1, -1, 1, -1, 1, -1, 1, 1); sizeU4 = size - rem%4; break;
@@ -233,7 +237,7 @@ void block_avx2_unrolled(double* A, double* B, double* C, int size) {
             for (int j0 = 0; j0 < size; j0 += BLOCKSIZE) {
                 for (int k0 = 0; k0 < size; k0 += BLOCKSIZE) {
                     for (int j = j0; j < MIN(j0+BLOCKSIZE, size); j++ ) {
-                        __m256d c0 = _mm256_maskload_pd(C + sizeU4 + j*size, mask);
+                        __m256d c0 = _mm256_maskload_pd(C + sizeU4 + j*size, mask); // load/store vectors with the mask
                         for(int k = k0; k < MIN(k0+BLOCKSIZE, size); k++) {
                             c0 = _mm256_add_pd(c0,
                             _mm256_mul_pd(_mm256_maskload_pd(A + sizeU4 + k*size, mask),

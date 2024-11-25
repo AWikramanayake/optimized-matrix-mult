@@ -111,8 +111,7 @@ void matrix_init(double** matrix, int rows, int cols, bool zeroes) {
 }
 
 /*
-    Matrix multiplication function that breaks workload into blocks
-    Blocks can be kept small to reduce cache misses
+    Matrix multiplication function that utilises avx2 vector instructions
 */
 void mult_avx2(double* A, double* B, double* C, int size) {
     // WORK IN PROGRESS - set up mask for clean-up code
@@ -157,7 +156,9 @@ void mult_avx2(double* A, double* B, double* C, int size) {
     }
 }
 
-
+/*
+    Matrix multiplication function that utilises avx2 vector instructions and loop unrolling
+*/
  void mult_avx2_unrolled(double* A, double* B, double* C, int n) {
     for (int i = 0; i < n; i+=UNROLL*4 )
         for ( int j = 0; j < n; j++ ) {
