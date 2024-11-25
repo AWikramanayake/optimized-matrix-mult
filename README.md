@@ -91,6 +91,7 @@ Image 4: AVX2 unrolled matrix multiplication code with cleanup</br>
 NOTE: like BLOCKSIZE above, UNROLL is a text macro that inserts the number of copies to make (i.e. the number of iterations to unroll).</br>
 Additional complexity means more complex cleanup code. This code allows any matrix size (no divisibility requirements) but assumes the self-imposed rule that BLOCKSIZE > UNROLL*4 (specifically, I used BLOCKSIZE = 32, UNROLL = 4). Eliminating this rule would make the already long cleanup code even more unwieldy.
 </br>
+
 So, what does this code achieve? The GCC compiler with -O3 flags is able to pipeline the vector instructions efficiently. Without getting into an actual analysis of assembly code, just look at the density of vector instructions (the ones starting with the letter v) in L54 (basic) vs L94 (unrolled) below:
 
 <p align="center">
