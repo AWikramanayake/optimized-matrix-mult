@@ -54,8 +54,57 @@ Given how large matrices in real-world applications tend to be, we need to impro
 <p align="center">
 Image 2: tiled implementation</br>
 
+Note: BLOCKSIZE is a text macro that inserts the blocksize where necessary.</br> A text macro is used instead of a variable so that the insertion is done at compile time instead of adding more operations at runtime.
 Using a blocksize of 32, we can limit ourselves to using 32x32 regions of each matrix, which fit into the L1 cache. From Figure 1, we see that the tiled implementation maintains its speed as we go past the L3 cache threshold. Looking at Figures 2 and 3, we see that the growth in expensive L3 misses and associated stalls is minuscule as we go from 1000x1000 matrices to 1600x1600 matrices, where the ikj implementation saw an ~80x increase in wasted cycles (again, notice that the y-axes for stalls are scaled to 1e8 in figure 2 and 1e10 in figure 3).
+</br>
 
-## Section 2: SIMD with AVX2, pipelining
+## Section 2: SIMD with AVX2
 
-Readme Under construction
+The Intel 12500h in my laptop supports AVX2 instructions including 256-bit vector operations, allowing us to work with 4 64-bit floats simultaneously (i.e. Single Instruction/Multiple Data, or SIMD). In theory, SIMD operations with 4 floats simultaneously could give us close to 4x the performance in an ideal case. Unfortunately, the GCC compiler doesn't employ these instructions automatically, but it can be nudged to use them using AVX2 intrinsic.
+
+<p align="center">
+<img src="https://github.com/AWikramanayake/optimized-matrix-mult/blob/main/misc/avx2.jpg?raw=true" width="720"/>
+</p>
+<p align="center">
+Image 3: AVX2 matrix multiplication code with cleanup</br>
+
+The minor caveat with using 256-bit vectors is that the load/store operations will go out of bounds if the number of rows/columns is not divisible by 4. To ensure that the algorithm works with matrices of arbitrary size, we need to employ cleanup code to handle the operations that might step out of bounds, using a mask when loading/storing to prevent seg faults. Using partially filled vectors means the maximum potential speedup is less than the ideal 4x, but the number of affected operations grows more slowly than the total number of operations and the initial overhead takes constant time.
+</br></br>
+So, how does the AVX2 implementation perform?
+
+<p align="center">
+<img src="https://github.com/AWikramanayake/optimized-matrix-mult/blob/main/misc/GFLOPSvsMatSizeAvx2.png?raw=true" width="720"/>
+</p>
+<p align="center">
+Figure 4: AVX2 implementation performance compared to other implementations</br>
+
+The zig-zagging at the tail end of the AVX2 graph is due to alternating between matrix sizes that are divisible by 4 or not (i.e. they incur the cleanup code penalty or do not). When cleanup code is not required, we see ~3.3x the performance of the basic tiled implementation. When cleanup code is needed, that drops to a still-impressive ~2.85x boost.
+</br></br>
+But we can go even further. The vector arithmetic instructions have a latency that should allow multiple iterations of the loop to be pipelined. However, due to the reusing of names (and thus registers in the CPU), an ordering is forced on the operations even though there is no data dependence. This is called a *name dependency* or an *antidependency* and can be mitigated using **loop unrolling**. We partially expand the loop by creating multiple copies of the arithmetic operation so that there is no longer any name dependency.
+
+<p align="center">
+<img src="https://github.com/AWikramanayake/optimized-matrix-mult/blob/main/misc/avx2unrolled.png?raw=true" width="720"/>
+</p>
+<p align="center">
+Image 4: AVX2 unrolled matrix multiplication code with cleanup</br>
+
+NOTE: like BLOCKSIZE above, UNROLL is a text macro that inserts the number of copies to make (i.e. the number of iterations to unroll).</br>
+Additional complexity means more complex cleanup code. This code allows any matrix size (no divisibility requirements) but assumes the self-imposed rule that BLOCKSIZE > UNROLL*4 (specifically, I used BLOCKSIZE = 32, UNROLL = 4). Eliminating this rule would make the already long cleanup code even more unwieldy.
+</br>
+So, what does this code achieve? The GCC compiler with -O3 flags is able to pipeline the vector instructions efficiently. Without getting into an actual analysis of assembly code, just look at the density of vector instructions (the ones starting with the letter v) in L54 (basic) vs L94 (unrolled) below:
+
+<p align="center">
+<img src="https://github.com/AWikramanayake/optimized-matrix-mult/blob/main/misc/avx2assembly.jpg?raw=true" width="720"/>
+</p>
+<p align="center">
+Image 4: AVX2 vs AVX unrolled assembly</br>
+
+A cursory glance tells us that the number of efficient vector instructions for a given amount of overhead is much greater with the unrolled code. And what does this increase net us performance-wise?
+
+<p align="center">
+<img src="https://github.com/AWikramanayake/optimized-matrix-mult/blob/main/misc/GFLOPSvsMatSizeAvx2unrolled.png?raw=true" width="720"/>
+</p>
+<p align="center">
+Image 4: AVX2 unrolled performance vs other implementations</br>
+
+Again, we see zig-zagging based on whether or not the cleanup code is triggered. Overall we have ~double the performance of the non-unrolled AVX2 implementation, and 5-6x the performance of the basic tiled implementation. This means for a 1600x1600 matrix, we have 30x the performance of the most basic naive implementation, without even using multithreading!
