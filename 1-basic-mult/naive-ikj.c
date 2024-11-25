@@ -13,7 +13,7 @@ static inline long long timestamp();
 
 int main(int argc, char* argv[argc+1]) {
     double **A, **B, **C;
-    int size = 350;
+    int size = 35;
     long long tstart, tstop;
     double tmmult;
 

@@ -8,12 +8,12 @@
 
 double** create_matrix(int, int);
 void matrix_init(double**, int, int, bool);
-
+void mult_avx2(double* A, double* B, double* C, int size);
 static inline long long timestamp();
 
 int main(int argc, char* argv[argc+1]) {
     double **A, **B, **C;
-    int size = 1600;
+    int size = 35;
     long long tstart, tstop;
     double tmmult;
 
@@ -115,22 +115,14 @@ void matrix_init(double** matrix, int rows, int cols, bool zeroes) {
     Blocks can be kept small to reduce cache misses
 */
 void mult_avx2(double* A, double* B, double* C, int size) {
-    /* WORK IN PROGRESS - set up mask for clean-up code
+    // WORK IN PROGRESS - set up mask for clean-up code
     int rem = size % 4;
+    printf("rem set to %d\n", rem);
     __m256i mask;
 
-    if (rem) {
-        switch(rem) {
-            case 1 : mask = _mm256_setr_epi32(1, -1, 1, 1, 1, 1, 1, 1); break;
-            case 2 : mask = _mm256_setr_epi32(1, -1, 1, -1, 1, 1, 1, 1); break;
-            case 3 : mask = _mm256_setr_epi32(1, -1, 1, -1, 1, -1, 1, 1); break;
-        }
-    }
-
     int size4 = size - rem;
-    */
 
-    for (int i = 0; i < size; i += 4) {
+    for (int i = 0; i < size4; i += 4) {
         for (int j = 0; j < size; j++) {
             __m256d c0 = _mm256_load_pd(C+i+j*size);
             for( int k = 0; k < size; k++ ) {
@@ -142,17 +134,27 @@ void mult_avx2(double* A, double* B, double* C, int size) {
             }
         }
     }
-    /* WORK IN PROGRESS - clean up code: handle remainder
+    // WORK IN PROGRESS - clean up code: handle remainder
+    
+    printf("rem = %d, proceeding with cleanup code\n", rem);
     if (rem) {
-        __m256d c0 = _mm256_maskload_pd(C[i] + size4, mask);
-        for( int k = 0; k < size; k++ ) {
-            c0 = _mm256_add_pd(c0,
-            _mm256_mul_pd(_mm256_load_pd(A[i] + k),
-            _mm256_broadcast_sd(B[k]+size4)));
-
-            _mm256_store_pd(C[i] + size4, c0);
+        switch(rem) {
+            case 1 : mask = _mm256_setr_epi32(1, -1, 1, 1, 1, 1, 1, 1); break;
+            case 2 : mask = _mm256_setr_epi32(1, -1, 1, -1, 1, 1, 1, 1); break;
+            case 3 : mask = _mm256_setr_epi32(1, -1, 1, -1, 1, -1, 1, 1); break;
         }
-    */
+
+        for (int j = 0; j < size; j++) {
+            __m256d c0 = _mm256_maskload_pd(C + size4 + j*size, mask);
+            for( int k = 0; k < size; k++ ) {
+                c0 = _mm256_add_pd(c0,
+                _mm256_mul_pd(_mm256_maskload_pd(A + size4 + k*size, mask),
+                _mm256_broadcast_sd(B + k + j*size)));
+
+                _mm256_maskstore_pd(C + size4 + j*size, mask, c0);
+            }
+        }
+    }
 }
 
 

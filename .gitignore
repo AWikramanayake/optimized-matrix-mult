@@ -34,3 +34,9 @@
 1-basic-mult/tiled.exe
 1-basic-mult/tiledvtune.exe
 2-avx2-mult/tiled_avx2.exe
+1-basic-mult/ikj.exe
+2-avx2-mult/bavx2f.exe
+2-avx2-mult/tavx2f.exe
+2-avx2-mult/test.exe
+2-avx2-mult/scratch.exe
+2-avx2-mult/scratch.c
